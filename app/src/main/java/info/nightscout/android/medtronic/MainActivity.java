@@ -67,6 +67,7 @@ import java.util.Locale;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 
+import info.nightscout.android.LockScreenNotification;
 import info.nightscout.android.R;
 import info.nightscout.android.USB.UsbHidDriver;
 import info.nightscout.android.eula.Eula;
@@ -386,6 +387,7 @@ public class MainActivity extends AppCompatActivity implements OnSharedPreferenc
         startDisplayRefreshLoop();
         statusStartup();
         startCgmService();
+        startService(new Intent(this, LockScreenNotification.class));
     }
 
     @Override
@@ -473,6 +475,7 @@ public class MainActivity extends AppCompatActivity implements OnSharedPreferenc
     private void refreshDisplay(int delay) {
         cancelDisplayRefreshLoop();
         mUiRefreshHandler.postDelayed(mUiRefreshRunnable, delay);
+        LockScreenNotification.scheduleNextUpdate(this, 50);
     }
 
     private void startDisplayRefreshLoop() {

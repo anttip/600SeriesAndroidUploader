@@ -25,6 +25,7 @@ public class DataStore {
     private int commsConnectThreshold = 0;
     private int commsSignalThreshold = 0;
     private float commsUnavailableThreshold = 0;
+    private boolean screenOn = true;
 
     private DataStore() {}
 
@@ -170,5 +171,13 @@ public class DataStore {
         this.commsConnectThreshold = 0;
         this.commsSignalThreshold = 0;
         this.commsUnavailableThreshold = 0;
+    }
+
+    public void setScreenOn(boolean screenOn) {
+        this.screenOn = screenOn;
+    }
+
+    public boolean getScreenOn(){
+        return this.screenOn;
     }
 }
