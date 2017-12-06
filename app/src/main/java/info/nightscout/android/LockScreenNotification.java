@@ -22,6 +22,7 @@ import info.nightscout.android.medtronic.MainActivity;
 import info.nightscout.android.model.medtronicNg.PumpStatusEvent;
 import info.nightscout.android.utils.ConfigurationStore;
 import info.nightscout.android.utils.DataStore;
+import info.nightscout.api.DeviceEndpoints;
 import io.realm.Realm;
 import io.realm.RealmResults;
 import io.realm.Sort;
@@ -69,29 +70,37 @@ public class LockScreenNotification extends IntentService {
         NotificationManager mNotificationManager =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
-        Realm mRealm = Realm.getDefaultInstance();
-        // most recent sgv status
-        RealmResults<PumpStatusEvent> sgv_results =
-                mRealm.where(PumpStatusEvent.class)
-                        .equalTo("validSGV", true)
-                        .findAllSorted("cgmDate", Sort.ASCENDING);
 
-        PumpStatusEvent lastEvent = null;
-        if (sgv_results.size() > 0) {
-            lastEvent = sgv_results.last();
+
+        int svg = 0;
+        float iob = 0;
+        long timeLastGoodSGV = 0;
+        PumpStatusEvent.CGM_TREND trend = PumpStatusEvent.CGM_TREND.NONE;
+
+        if (fakeValues) {
+            svg = (int) (Math.random() * 20 * 18);
+            iob = (float) Math.floor((float) Math.random() * 40) / 10f;
+            timeLastGoodSGV = System.currentTimeMillis() - ((int) (Math.random() * 20 * 1000 * 60));
+        }else {
+            Realm mRealm = Realm.getDefaultInstance();
+            // most recent sgv status
+            RealmResults<PumpStatusEvent> sgv_results =
+                    mRealm.where(PumpStatusEvent.class)
+                            .equalTo("validSGV", true)
+                            .findAllSorted("cgmDate", Sort.ASCENDING);
+            if (sgv_results.size() > 0) {
+                PumpStatusEvent lastEvent = sgv_results.last();
+                svg = lastEvent.getSgv();
+                iob = lastEvent.getActiveInsulin();
+                timeLastGoodSGV = lastEvent.getCgmDate().getTime();
+                trend = lastEvent.getCgmTrend();
+            }
         }
-        long timeLastGoodSGV = lastEvent.getCgmDate().getTime();
-        if (lastEvent.getSgv() == 0) {
-            timeLastGoodSGV = 0;
-        }
+
 
         long age = System.currentTimeMillis() - timeLastGoodSGV;
-        if (fakeValues) {
-            age = (int) (Math.random() * 20 * 1000 * 60);
-            timeLastGoodSGV = 1;
-        }
-
         boolean valid = timeLastGoodSGV > 0 && (age < TimeUnit.MINUTES.toMillis(15));
+
 
         RemoteViews contentView = new RemoteViews(getPackageName(), R.layout.custom_notification);
         final int COLOR_WARN = getResources().getColor(R.color.md_deep_orange_800);
@@ -113,17 +122,9 @@ public class LockScreenNotification extends IntentService {
             contentView.setTextColor(R.id.iob, COLOR_INVALID);
         } else {
 
-            int svg = lastEvent.getSgv();
-            float iob = lastEvent.getActiveInsulin();
-
-            if (fakeValues) {
-                svg = (int) (Math.random() * 20 * 18);
-                iob = (float) Math.floor((float) Math.random() * 40) / 10f;
-            }
-
             //update values
             svgStr = StringUtils.leftPad(MainActivity.strFormatSGV(svg), 5);
-            trendStr = renderTrendSymbol(lastEvent.getCgmTrend());
+            trendStr = renderTrendSymbol(trend);
             iobStr = StringUtils.leftPad(String.format(Locale.getDefault(), "%.2f", iob) + "U", 5);
             timeStr = StringUtils.leftPad("" + Math.round(TimeUnit.MILLISECONDS.toMinutes(age)), 2);
 
