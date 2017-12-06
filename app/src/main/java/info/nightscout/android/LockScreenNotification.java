@@ -19,10 +19,12 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import info.nightscout.android.medtronic.MainActivity;
+import info.nightscout.android.model.medtronicNg.PumpStatusEvent;
 import info.nightscout.android.utils.ConfigurationStore;
 import info.nightscout.android.utils.DataStore;
-
-import static android.content.ContentValues.TAG;
+import io.realm.Realm;
+import io.realm.RealmResults;
+import io.realm.Sort;
 
 
 // Updates most important values to the lock screen through a constant notification
@@ -57,7 +59,7 @@ public class LockScreenNotification extends IntentService {
         if (intent.hasExtra("screenOn")) {
             dataStore.setScreenOn(intent.getBooleanExtra("screenOn", false));
         }
-        Log.d("Notifications", "ScreenOn=" + dataStore.getScreenOn());
+        Log.d("Notifications", "ScreenOn=" + dataStore.isScreenOn());
         onHandleIntent(intent);
     }
 
@@ -67,9 +69,19 @@ public class LockScreenNotification extends IntentService {
         NotificationManager mNotificationManager =
                 (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
+        Realm mRealm = Realm.getDefaultInstance();
+        // most recent sgv status
+        RealmResults<PumpStatusEvent> sgv_results =
+                mRealm.where(PumpStatusEvent.class)
+                        .equalTo("validSGV", true)
+                        .findAllSorted("cgmDate", Sort.ASCENDING);
 
-        long timeLastGoodSGV = dataStore.getLastPumpStatus().getSgvDate().getTime();
-        if (dataStore.getLastPumpStatus().getSgv() == 0) {
+        PumpStatusEvent lastEvent = null;
+        if (sgv_results.size() > 0) {
+            lastEvent = sgv_results.last();
+        }
+        long timeLastGoodSGV = lastEvent.getCgmDate().getTime();
+        if (lastEvent.getSgv() == 0) {
             timeLastGoodSGV = 0;
         }
 
@@ -101,8 +113,8 @@ public class LockScreenNotification extends IntentService {
             contentView.setTextColor(R.id.iob, COLOR_INVALID);
         } else {
 
-            int svg = dataStore.getLastPumpStatus().getSgv();
-            float iob = dataStore.getLastPumpStatus().getActiveInsulin();
+            int svg = lastEvent.getSgv();
+            float iob = lastEvent.getActiveInsulin();
 
             if (fakeValues) {
                 svg = (int) (Math.random() * 20 * 18);
@@ -111,7 +123,7 @@ public class LockScreenNotification extends IntentService {
 
             //update values
             svgStr = StringUtils.leftPad(MainActivity.strFormatSGV(svg), 5);
-            trendStr = MainActivity.renderTrendSymbol(dataStore.getLastPumpStatus().getCgmTrend());
+            trendStr = renderTrendSymbol(lastEvent.getCgmTrend());
             iobStr = StringUtils.leftPad(String.format(Locale.getDefault(), "%.2f", iob) + "U", 5);
             timeStr = StringUtils.leftPad("" + Math.round(TimeUnit.MILLISECONDS.toMinutes(age)), 2);
 
@@ -172,6 +184,29 @@ public class LockScreenNotification extends IntentService {
     }
 
 
+
+    private static String renderTrendSymbol(PumpStatusEvent.CGM_TREND trend) {
+        // TODO - symbols used for trend arrow may vary per device, find a more robust solution
+        switch (trend) {
+            case DOUBLE_UP:
+                return "\u21c8";
+            case SINGLE_UP:
+                return "\u2191";
+            case FOURTY_FIVE_UP:
+                return "\u2197";
+            case FLAT:
+                return "\u2192";
+            case FOURTY_FIVE_DOWN:
+                return "\u2198";
+            case SINGLE_DOWN:
+                return "\u2193";
+            case DOUBLE_DOWN:
+                return "\u21ca";
+            default:
+                return "\u2014";
+        }
+    }
+
     @Override
     protected void onHandleIntent(Intent intent) {
         //PowerManager pm = (PowerManager) getApplicationContext().getSystemService(Context.POWER_SERVICE);
@@ -182,7 +217,7 @@ public class LockScreenNotification extends IntentService {
 
 
         int delayMs = 60 * 1000;
-        if (dataStore.getScreenOn()) {
+        if (dataStore.isScreenOn()) {
             Log.d("Notifications", "Updated notification, next update in " + delayMs);
             scheduleNextUpdate(this, delayMs);
         } else {
