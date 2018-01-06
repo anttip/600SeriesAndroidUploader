@@ -80,6 +80,10 @@
             android:name=".medtronic.service.MedtronicCnlIntentService"
             android:icon="@drawable/ic_launcher" />
 
+        <service
+            android:name=".LockScreenNotification"
+            android:icon="@drawable/ic_launcher" />
+
         <receiver android:name=".medtronic.service.MedtronicCnlAlarmReceiver" />
         <receiver android:name=".upload.nightscout.NightscoutUploadReceiver" />
         <receiver android:name=".xdrip_plus.XDripPlusUploadReceiver" />
